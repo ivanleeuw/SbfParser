@@ -89,8 +89,6 @@ BLOCKNAMES = [
     'GISAction', 'GISStatus'
 ]
 
-"""
-# Need to implement sub-sub-blocks parsing
 MeasEpoch = (
     ('TOW', 'u4'),
     ('WNc', 'u2'),
@@ -128,7 +126,6 @@ MeasEpoch_Type_2 = (
     ('CarrierLSB', 'u2'),
     ('DopplerOffsetLSB', 'u2'),
 )
-"""
 
 MeasExtra = (
     ('TOW', 'u4'),
@@ -1554,8 +1551,6 @@ FugroStatus = (
     ('LbandTrackerStatusIdx', 'u2'),
 )
 
-"""
-# Need sub-sub-block parsing
 ChannelStatus = (
     ('TOW', 'u4'),
     ('WNc', 'u2'),
@@ -1584,7 +1579,6 @@ ChannelStatus_ChannelStateInfo = (
     ('PVTStatus', 'u2'),
     ('PVTInfo', 'u2'),
 )
-"""
 
 ReceiverStatus = (
     ('TOW', 'u4'),

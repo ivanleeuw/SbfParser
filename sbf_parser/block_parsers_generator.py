@@ -66,12 +66,15 @@ SUB_BLOCK_HANDLERS = {
     "NTRIPServerStatus" : ("NTRIPServerConnection", "NTRIPServerConnection"),
     "DiskStatus" : ("DiskData", "DiskData"),
     "P2PPStatus" : ("P2PPSession", "P2PPSession"),
+    "MeasEpoch": ("Type_1", "MeasEpoch_Type_1"),
+    "MeasEpoch_Type_1": ("Type_2", "MeasEpoch_Type_2"),
+    "ChannelStatus": ("SatInfo", "ChannelStatus_ChannelSatInfo"),
+    "ChannelStatus_ChannelSatInfo": ("StateInfo", "ChannelStatus_ChannelStateInfo"),
 
-    # Theses blocks need sub-sub-block parsing.
-    # You can make a PR for support or contact Septentrio for support. 
-    # "MeasEpoch": ("Type1", "")
-    # "ChannelStatus" : ("ChannelSatInfo", ""),
-    # "OutputLink" : ("OutputStats", ""),
+    # This block/sub-block needs nested Reserved array handling
+    # You can make a PR for support or contact Septentrio for support.
+    # "OutputLink": ("OutputStats", "OutputLink_OutputStats"),
+    # "OutputLink_OutputStats": ("OutputType", "OutputLink_OutputType"),
 }
 
 def get_block_structure(block_name: str) -> List[Tuple[str, str]]:
@@ -98,22 +101,46 @@ def generate_parser_function(block_name: str) -> str:
     # Handle sub-blocks if present
     if block_name in SUB_BLOCK_HANDLERS.keys():
         sub_block_key, sub_block_class = SUB_BLOCK_HANDLERS[block_name]
+        has_sub_sub_block = sub_block_class in SUB_BLOCK_HANDLERS.keys()
+        sb0_n = "sb0.N1" if has_sub_sub_block and block_name != "ChannelStatus" else "sb0.N"
+        sb0_sblength = "sb0.SB1Length" if has_sub_sub_block else "sb0.SBLength"
         
         code += f"    sub_block_list = []\n"
         code += f"    cdef {sub_block_class} subblock\n"
         code += f"    cdef size_t i = sizeof({block_name})\n"
-        code += f"    for _ in xrange(sb0.N):\n"
+        if has_sub_sub_block:
+            sub_sub_block_key, sub_sub_block_class = SUB_BLOCK_HANDLERS[sub_block_class]
+            code += f"    cdef {sub_sub_block_class} subsubblock\n"
+        code += f"    for _ in xrange({sb0_n}):\n"
         code += f"        subblock = (<{sub_block_class}*>(data + i))[0]\n"
-        code += f"        i += sb0.SBLength\n\n"
-        code +=  "        sub_block_list.append({\n"
+        code += f"        i += {sb0_sblength}\n\n"
+        code +=  "        sub_block_dict = {\n"
 
         # Get sub-block fields from the block structure
         sub_block_fields = get_block_structure(sub_block_class)
         for name, type_ in sub_block_fields:
             conversion = get_c_type_conversion('subblock', name, type_)
             code += f"            '{name}': {conversion},\n"
-        code += "        })\n"
-        
+        code += "        }\n"
+
+        # Handle sub-sub-blocks if present
+        if has_sub_sub_block:
+            code += f"        sub_sub_block_list = []\n"
+            code += f"        for _ in xrange(subblock.N2):\n"
+            code += f"            subsubblock = (<{sub_sub_block_class}*>(data + i))[0]\n"
+            code += f"            i += sb0.SB2Length\n\n"
+            code +=  "            sub_sub_block_list.append({\n"
+
+            # Get sub-block fields from the block structure
+            sub_sub_block_fields = get_block_structure(sub_sub_block_class)
+            for name, type_ in sub_sub_block_fields:
+                conversion = get_c_type_conversion('subsubblock', name, type_)
+                code += f"                '{name}': {conversion},\n"
+            code += "            })\n"
+            code +=f"        sub_block_dict['{sub_sub_block_key}'] = sub_sub_block_list\n"
+
+        code += "        sub_block_list.append(sub_block_dict)\n"
+
         code += f"    block_dict['{sub_block_key}'] = sub_block_list\n\n"
     
     code += "    return block_dict\n\n"
@@ -126,10 +153,16 @@ def generate_all_parsers() -> str:
 # Initial code by Jashandeep Sohi (2013, jashandeep.s.sohi@gmail.com)
 # adapted by Marco Job (2019, marco.job@bluewin.ch)
 # Update Meven Jeanne-Rose 2023
-# Update Louis-Max 2025
+# Update Louis-Max Harter 2025
+# Update Loïc Dubois 2025
+
+from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
+from libc.stdlib cimport free, malloc
+
+# Import all type definitions from the .pxd file
+from .block_parsers cimport *
 
 cdef dict BLOCKPARSERS = dict()
-
 
 def unknown_toDict(c1 * data):
     block_dict = dict()
