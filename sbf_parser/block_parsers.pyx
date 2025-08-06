@@ -3,6 +3,7 @@
 # adapted by Marco Job (2019, marco.job@bluewin.ch)
 # Update Meven Jeanne-Rose 2023
 # Update Louis-Max Harter 2025
+# Update Loïc Dubois 2025
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
 from libc.stdlib cimport free, malloc
@@ -17,6 +18,66 @@ def unknown_toDict(c1 * data):
     block_dict['payload'] = data
     return block_dict
 BLOCKPARSERS['Unknown'] = unknown_toDict
+
+def MeasEpoch_toDict(c1 * data):
+    cdef MeasEpoch * sb0 = <MeasEpoch *>data
+
+    block_dict = {
+        'TOW': sb0.TOW,
+        'WNc': sb0.WNc,
+        'N1': sb0.N1,
+        'SB1Length': sb0.SB1Length,
+        'SB2Length': sb0.SB2Length,
+        'CommonFlags': sb0.CommonFlags,
+        'CumClkJumps': sb0.CumClkJumps,
+        'Reserved': sb0.Reserved,
+    }
+
+    sub_block_list = []
+    cdef MeasEpoch_Type_1 subblock
+    cdef size_t i = sizeof(MeasEpoch)
+    cdef MeasEpoch_Type_2 subsubblock
+    for _ in xrange(sb0.N1):
+        subblock = (<MeasEpoch_Type_1*>(data + i))[0]
+        i += sb0.SB1Length
+
+        sub_block_dict = {
+            'RxChannel': subblock.RxChannel,
+            'Type': subblock.Type,
+            'SVID': subblock.SVID,
+            'Misc': subblock.Misc,
+            'CodeLSB': subblock.CodeLSB,
+            'Doppler': subblock.Doppler,
+            'CarrierLSB': subblock.CarrierLSB,
+            'CarrierMSB': subblock.CarrierMSB,
+            'CN0': subblock.CN0,
+            'LockTime': subblock.LockTime,
+            'ObsInfo': subblock.ObsInfo,
+            'N2': subblock.N2,
+        }
+        sub_sub_block_list = []
+        for _ in xrange(subblock.N2):
+            subsubblock = (<MeasEpoch_Type_2*>(data + i))[0]
+            i += sb0.SB2Length
+
+            sub_sub_block_list.append({
+                'Type': subsubblock.Type,
+                'LockTime': subsubblock.LockTime,
+                'CN0': subsubblock.CN0,
+                'OffsetMSB': subsubblock.OffsetMSB,
+                'CarrierMSB': subsubblock.CarrierMSB,
+                'ObsInfo': subsubblock.ObsInfo,
+                'CodeOffsetLSB': subsubblock.CodeOffsetLSB,
+                'CarrierLSB': subsubblock.CarrierLSB,
+                'DopplerOffsetLSB': subsubblock.DopplerOffsetLSB,
+            })
+        sub_block_dict['Type_2'] = sub_sub_block_list
+        sub_block_list.append(sub_block_dict)
+    block_dict['Type_1'] = sub_block_list
+
+    return block_dict
+
+BLOCKPARSERS['MeasEpoch'] = MeasEpoch_toDict
 
 def MeasExtra_toDict(c1 * data):
     cdef MeasExtra * sb0 = <MeasExtra *>data
@@ -36,7 +97,7 @@ def MeasExtra_toDict(c1 * data):
         subblock = (<MeasExtraChannelSub*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'RxChannel': subblock.RxChannel,
             'Type': subblock.Type,
             'MPCorrection ': subblock.MPCorrection ,
@@ -48,7 +109,8 @@ def MeasExtra_toDict(c1 * data):
             'CarMPCorr': subblock.CarMPCorr,
             'Info': subblock.Info,
             'Misc': subblock.Misc,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['MeasExtraChannel'] = sub_block_list
 
     return block_dict
@@ -1016,12 +1078,13 @@ def GEOFastCorr_toDict(c1 * data):
         subblock = (<GEOFastCorr_FastCorr*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'PRNMaskNo': subblock.PRNMaskNo,
             'UDREI': subblock.UDREI,
             'Reserved': (<c1*>&subblock.Reserved)[0:2],
             'PRC': subblock.PRC,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['FastCorr'] = sub_block_list
 
     return block_dict
@@ -1224,12 +1287,13 @@ def GEOIonoDelay_toDict(c1 * data):
         subblock = (<GEOIonoDelay_IDC*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'IGPMaskNo': subblock.IGPMaskNo,
             'GIVEI': subblock.GIVEI,
             'Reserved': (<c1*>&subblock.Reserved)[0:2],
             'VerticalDelay': subblock.VerticalDelay,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['IDC'] = sub_block_list
 
     return block_dict
@@ -1261,14 +1325,15 @@ def GEOServiceLevel_toDict(c1 * data):
         subblock = (<GEOServiceLevel_ServiceRegion*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'Latitude1': subblock.Latitude1,
             'Latitude2': subblock.Latitude2,
             'Longitude1': subblock.Longitude1,
             'Longitude2': subblock.Longitude2,
             'RegionShape': subblock.RegionShape,
             'Reserved': subblock.Reserved,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['ServiceRegion'] = sub_block_list
 
     return block_dict
@@ -1295,7 +1360,7 @@ def GEOClockEphCovMatrix_toDict(c1 * data):
         subblock = (<GEOClockEphCovMatrix_CovMatrix*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'PRNMaskNo': subblock.PRNMaskNo,
             'Reserved': (<c1*>&subblock.Reserved)[0:2],
             'ScaleExp': subblock.ScaleExp,
@@ -1309,7 +1374,8 @@ def GEOClockEphCovMatrix_toDict(c1 * data):
             'E23': subblock.E23,
             'E24': subblock.E24,
             'E34': subblock.E34,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['CovMatrix'] = sub_block_list
 
     return block_dict
@@ -1599,7 +1665,7 @@ def BaseVectorCart_toDict(c1 * data):
         subblock = (<BaseVectorCart_VectorInfoCart*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'NrSV': subblock.NrSV,
             'Error': subblock.Error,
             'Mode': subblock.Mode,
@@ -1615,7 +1681,8 @@ def BaseVectorCart_toDict(c1 * data):
             'ReferenceID': subblock.ReferenceID,
             'CorrAge': subblock.CorrAge,
             'SignalInfo': subblock.SignalInfo,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['VectorInfoCart'] = sub_block_list
 
     return block_dict
@@ -1639,7 +1706,7 @@ def BaseVectorGeod_toDict(c1 * data):
         subblock = (<BaseVectorGeod_VectorInfoGeod*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'NrSV': subblock.NrSV,
             'Error': subblock.Error,
             'Mode': subblock.Mode,
@@ -1655,7 +1722,8 @@ def BaseVectorGeod_toDict(c1 * data):
             'ReferenceID': subblock.ReferenceID,
             'CorrAge': subblock.CorrAge,
             'SignalInfo': subblock.SignalInfo,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['VectorInfoGeod'] = sub_block_list
 
     return block_dict
@@ -1961,7 +2029,7 @@ def LBandTrackerStatus_toDict(c1 * data):
         subblock = (<LBandTrackerStatus_TrackData*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'Frequency': subblock.Frequency,
             'Baudrate': subblock.Baudrate,
             'ServiceID': subblock.ServiceID,
@@ -1974,7 +2042,8 @@ def LBandTrackerStatus_toDict(c1 * data):
             'SVID': subblock.SVID,
             'LockTime': subblock.LockTime,
             'Source': subblock.Source,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['TrackData'] = sub_block_list
 
     return block_dict
@@ -2034,6 +2103,57 @@ def FugroStatus_toDict(c1 * data):
 
 BLOCKPARSERS['FugroStatus'] = FugroStatus_toDict
 
+def ChannelStatus_toDict(c1 * data):
+    cdef ChannelStatus * sb0 = <ChannelStatus *>data
+
+    block_dict = {
+        'TOW': sb0.TOW,
+        'WNc': sb0.WNc,
+        'N': sb0.N,
+        'SB1Length': sb0.SB1Length,
+        'SB2Length': sb0.SB2Length,
+        'Reserved': (<c1*>&sb0.Reserved)[0:3],
+    }
+
+    sub_block_list = []
+    cdef ChannelStatus_ChannelSatInfo subblock
+    cdef size_t i = sizeof(ChannelStatus)
+    cdef ChannelStatus_ChannelStateInfo subsubblock
+    for _ in xrange(sb0.N):
+        subblock = (<ChannelStatus_ChannelSatInfo*>(data + i))[0]
+        i += sb0.SB1Length
+
+        sub_block_dict = {
+            'SVID': subblock.SVID,
+            'FreqNr': subblock.FreqNr,
+            'Reserved': subblock.Reserved,
+            'Azimuth_RiseSet': subblock.Azimuth_RiseSet,
+            'HealthStatus': subblock.HealthStatus,
+            'Elevation': subblock.Elevation,
+            'N2': subblock.N2,
+            'RxChannel': subblock.RxChannel,
+            'Reserved2': subblock.Reserved2,
+        }
+        sub_sub_block_list = []
+        for _ in xrange(subblock.N2):
+            subsubblock = (<ChannelStatus_ChannelStateInfo*>(data + i))[0]
+            i += sb0.SB2Length
+
+            sub_sub_block_list.append({
+                'Antenna': subsubblock.Antenna,
+                'Reserved': subsubblock.Reserved,
+                'TrackingStatus': subsubblock.TrackingStatus,
+                'PVTStatus': subsubblock.PVTStatus,
+                'PVTInfo': subsubblock.PVTInfo,
+            })
+        sub_block_dict['StateInfo'] = sub_sub_block_list
+        sub_block_list.append(sub_block_dict)
+    block_dict['SatInfo'] = sub_block_list
+
+    return block_dict
+
+BLOCKPARSERS['ChannelStatus'] = ChannelStatus_toDict
+
 def ReceiverStatus_toDict(c1 * data):
     cdef ReceiverStatus * sb0 = <ReceiverStatus *>data
 
@@ -2058,12 +2178,13 @@ def ReceiverStatus_toDict(c1 * data):
         subblock = (<ReceiverStatus_AGCState*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'FrontendID': subblock.FrontendID,
             'Gain': subblock.Gain,
             'SampleVar': subblock.SampleVar,
             'BlankingStat': subblock.BlankingStat,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['AGCState'] = sub_block_list
 
     return block_dict
@@ -2087,14 +2208,15 @@ def SatVisibility_toDict(c1 * data):
         subblock = (<SatVisibility_SatInfo*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'SVID': subblock.SVID,
             'FreqNr': subblock.FreqNr,
             'Azimuth': subblock.Azimuth,
             'Elevation': subblock.Elevation,
             'RiseSet': subblock.RiseSet,
             'SatelliteInfo': subblock.SatelliteInfo,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['SatInfo'] = sub_block_list
 
     return block_dict
@@ -2118,7 +2240,7 @@ def InputLink_toDict(c1 * data):
         subblock = (<InputLink_InputStats*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'CD': subblock.CD,
             'Type': subblock.Type,
             'AgeOfLastMessage': subblock.AgeOfLastMessage,
@@ -2126,7 +2248,8 @@ def InputLink_toDict(c1 * data):
             'NrBytesAccepted': subblock.NrBytesAccepted,
             'NrMsgReceived': subblock.NrMsgReceived,
             'NrMsgAccepted': subblock.NrMsgAccepted,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['InputStats'] = sub_block_list
 
     return block_dict
@@ -2150,12 +2273,13 @@ def NTRIPClientStatus_toDict(c1 * data):
         subblock = (<NTRIPClientConnection*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'CDIndex': subblock.CDIndex,
             'Status': subblock.Status,
             'ErrorCode': subblock.ErrorCode,
             'Info': subblock.Info,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['NTRIPClientConnection'] = sub_block_list
 
     return block_dict
@@ -2179,12 +2303,13 @@ def NTRIPServerStatus_toDict(c1 * data):
         subblock = (<NTRIPServerConnection*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'CDIndex': subblock.CDIndex,
             'Status': subblock.Status,
             'ErrorCode': subblock.ErrorCode,
             'Info': subblock.Info,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['NTRIPServerConnection'] = sub_block_list
 
     return block_dict
@@ -2257,7 +2382,7 @@ def DiskStatus_toDict(c1 * data):
         subblock = (<DiskData*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'DiskID': subblock.DiskID,
             'Status': subblock.Status,
             'DiskUsageMSB': subblock.DiskUsageMSB,
@@ -2265,7 +2390,8 @@ def DiskStatus_toDict(c1 * data):
             'DiskSize': subblock.DiskSize,
             'CreateDeleteCount': subblock.CreateDeleteCount,
             'Error': subblock.Error,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['DiskData'] = sub_block_list
 
     return block_dict
@@ -2291,11 +2417,12 @@ def RFStatus_toDict(c1 * data):
         subblock = (<RFBand*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'Frequency': subblock.Frequency,
             'Bandwidth': subblock.Bandwidth,
             'Info': subblock.Info,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['RFBand'] = sub_block_list
 
     return block_dict
@@ -2319,12 +2446,13 @@ def P2PPStatus_toDict(c1 * data):
         subblock = (<P2PPSession*>(data + i))[0]
         i += sb0.SBLength
 
-        sub_block_list.append({
+        sub_block_dict = {
             'SessionID': subblock.SessionID,
             'Port': subblock.Port,
             'Status': subblock.Status,
             'ErrorCode': subblock.ErrorCode,
-        })
+        }
+        sub_block_list.append(sub_block_dict)
     block_dict['P2PPSession'] = sub_block_list
 
     return block_dict
